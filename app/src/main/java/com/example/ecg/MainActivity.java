@@ -1,8 +1,10 @@
 package com.example.ecg;
 
+import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
@@ -12,7 +14,9 @@ import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 
 import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.data.Entry;
@@ -24,29 +28,17 @@ import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
-    // ===============================
-    // UI
-    // ===============================
     private LineChart ecgChart;
     private Button btnStart, btnStop, btnResults;
     private TextView txtRMSSD;
 
-    // ===============================
-    // Gráfico
-    // ===============================
     private LineDataSet dataSet;
     private LineData lineData;
 
-    // ===============================
-    // Controle
-    // ===============================
     private Handler handler = new Handler();
     private boolean isRunning = false;
     private int sampleIndex = 0;
 
-    // ===============================
-    // ECG + HRV
-    // ===============================
     private ArrayList<Float> ecgSignal = new ArrayList<>();
     private ArrayList<Integer> rPeaks = new ArrayList<>();
     private ArrayList<Double> rrIntervals = new ArrayList<>();
@@ -55,16 +47,11 @@ public class MainActivity extends AppCompatActivity {
     private static final float FS = 50f;
     private float threshold = 0.8f;
 
-    // ===============================
-    // Arritmia
-    // ===============================
     private static final double RMSSD_ARRHYTHMIA_THRESHOLD = 80.0;
     private boolean arrhythmiaDetected = false;
 
-    // ===============================
-    // Notificação
-    // ===============================
     private static final String CHANNEL_ID = "ARRHYTHMIA_CHANNEL";
+    private static final int NOTIFICATION_PERMISSION_CODE = 1001;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,13 +70,9 @@ public class MainActivity extends AppCompatActivity {
 
         btnStart.setOnClickListener(v -> startECG());
         btnStop.setOnClickListener(v -> stopECG());
-
         btnResults.setOnClickListener(v -> openResults());
     }
 
-    // ===============================
-    // GRÁFICO
-    // ===============================
     private void setupChart() {
         dataSet = new LineDataSet(new ArrayList<>(), "ECG");
         dataSet.setColor(Color.RED);
@@ -105,11 +88,7 @@ public class MainActivity extends AppCompatActivity {
         ecgChart.getAxisRight().setEnabled(false);
     }
 
-    // ===============================
-    // ECG (TEMPORÁRIO – será trocado pelo ESP32)
-    // ===============================
     private float getECGSample() {
-        // Placeholder: depois entra Wi-Fi / Bluetooth aqui
         return generateECGSample(sampleIndex);
     }
 
@@ -131,9 +110,6 @@ public class MainActivity extends AppCompatActivity {
         return amp * (float) Math.exp(-0.5f * Math.pow((x - mu) / sigma, 2));
     }
 
-    // ===============================
-    // LOOP DE AQUISIÇÃO
-    // ===============================
     private Runnable ecgRunnable = new Runnable() {
         @Override
         public void run() {
@@ -178,19 +154,42 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // ===============================
-    // ARRITMIA
-    // ===============================
     private void checkArrhythmia(double rmssd) {
         if (rmssd > RMSSD_ARRHYTHMIA_THRESHOLD && !arrhythmiaDetected) {
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (ContextCompat.checkSelfPermission(this,
+                        Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+
+                    ActivityCompat.requestPermissions(this,
+                            new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                            NOTIFICATION_PERMISSION_CODE);
+                    return;
+                }
+            }
+
             arrhythmiaDetected = true;
             sendArrhythmiaNotification();
         }
     }
 
-    // ===============================
-    // RMSSD
-    // ===============================
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           String[] permissions,
+                                           int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == NOTIFICATION_PERMISSION_CODE) {
+            if (grantResults.length > 0 &&
+                    grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+
+                arrhythmiaDetected = true;
+                sendArrhythmiaNotification();
+            }
+        }
+    }
+
     private double calculateRMSSD(ArrayList<Double> rr) {
         if (rr.size() < 3) return 0.0;
 
@@ -203,14 +202,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateRMSSDUI(double rmssd) {
-        runOnUiThread(() -> txtRMSSD.setText(
-                String.format(Locale.getDefault(), "RMSSD: %.1f ms", rmssd)
-        ));
+        runOnUiThread(() ->
+                txtRMSSD.setText(
+                        String.format(Locale.getDefault(), "RMSSD: %.1f ms", rmssd)
+                ));
     }
 
-    // ===============================
-    // CONTROLES
-    // ===============================
     private void startECG() {
         if (isRunning) return;
 
@@ -240,9 +237,6 @@ public class MainActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
-    // ===============================
-    // NOTIFICAÇÃO
-    // ===============================
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
@@ -264,6 +258,7 @@ public class MainActivity extends AppCompatActivity {
 
         NotificationManager manager =
                 (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+
         manager.notify(1, builder.build());
     }
 }

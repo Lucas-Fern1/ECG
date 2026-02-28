@@ -28,13 +28,16 @@ import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
+    // ================= UI =================
     private LineChart ecgChart;
     private Button btnStart, btnStop, btnResults;
     private TextView txtRMSSD;
 
+    // ================= Chart =================
     private LineDataSet dataSet;
     private LineData lineData;
 
+    // ================= ECG =================
     private Handler handler = new Handler();
     private boolean isRunning = false;
     private int sampleIndex = 0;
@@ -43,16 +46,19 @@ public class MainActivity extends AppCompatActivity {
     private ArrayList<Integer> rPeaks = new ArrayList<>();
     private ArrayList<Double> rrIntervals = new ArrayList<>();
 
-    private static final int WINDOW_SIZE = 30;
     private static final float FS = 50f;
+    private static final int WINDOW_SIZE = 30;
     private float threshold = 0.8f;
 
-    private static final double RMSSD_ARRHYTHMIA_THRESHOLD = 80.0;
-    private boolean arrhythmiaDetected = false;
-
+    // ================= Notification =================
     private static final String CHANNEL_ID = "ARRHYTHMIA_CHANNEL";
     private static final int NOTIFICATION_PERMISSION_CODE = 1001;
+    private static final long NOTIFICATION_COOLDOWN = 60000;
 
+    private long lastNotificationTime = 0;
+    private boolean pendingNotification = false;
+
+    // ====================================================
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -73,7 +79,9 @@ public class MainActivity extends AppCompatActivity {
         btnResults.setOnClickListener(v -> openResults());
     }
 
+    // ================= CHART =================
     private void setupChart() {
+
         dataSet = new LineDataSet(new ArrayList<>(), "ECG");
         dataSet.setColor(Color.RED);
         dataSet.setDrawCircles(false);
@@ -84,43 +92,47 @@ public class MainActivity extends AppCompatActivity {
         ecgChart.setData(lineData);
 
         ecgChart.getDescription().setEnabled(false);
-        ecgChart.getLegend().setEnabled(false);
         ecgChart.getAxisRight().setEnabled(false);
+        ecgChart.getLegend().setEnabled(false);
     }
 
-    private float getECGSample() {
-        return generateECGSample(sampleIndex);
-    }
-
+    // ================= ECG GENERATOR =================
     private float generateECGSample(int i) {
-        float hr = 75.0f + 5.0f * (float) Math.sin(2 * Math.PI * i / 500.0);
-        float rr = FS * 60.0f / hr;
+
+        float hr = 75f + 5f *
+                (float) Math.sin(2 * Math.PI * i / 500f);
+
+        float rr = FS * 60f / hr;
         float t = i % rr;
 
-        float p  = gaussian(t, 0.20f * rr, 0.025f * rr, 0.10f);
-        float q  = gaussian(t, 0.45f * rr, 0.010f * rr, -0.15f);
-        float r  = gaussian(t, 0.50f * rr, 0.012f * rr, 1.20f);
-        float s  = gaussian(t, 0.55f * rr, 0.010f * rr, -0.25f);
-        float tW = gaussian(t, 0.75f * rr, 0.050f * rr, 0.30f);
+        float p  = gaussian(t,0.20f*rr,0.025f*rr,0.10f);
+        float q  = gaussian(t,0.45f*rr,0.010f*rr,-0.15f);
+        float r  = gaussian(t,0.50f*rr,0.012f*rr,1.20f);
+        float s  = gaussian(t,0.55f*rr,0.010f*rr,-0.25f);
+        float tw = gaussian(t,0.75f*rr,0.050f*rr,0.30f);
 
-        return p + q + r + s + tW;
+        return p+q+r+s+tw;
     }
 
-    private float gaussian(float x, float mu, float sigma, float amp) {
-        return amp * (float) Math.exp(-0.5f * Math.pow((x - mu) / sigma, 2));
+    private float gaussian(float x,float mu,float sigma,float amp){
+        return amp *
+                (float)Math.exp(-0.5*
+                        Math.pow((x-mu)/sigma,2));
     }
 
+    // ================= LOOP ECG =================
     private Runnable ecgRunnable = new Runnable() {
         @Override
         public void run() {
-            if (!isRunning) return;
 
-            float value = getECGSample();
+            if(!isRunning) return;
+
+            float value = generateECGSample(sampleIndex);
+
             ecgSignal.add(value);
-
             detectRPeak(value);
 
-            dataSet.addEntry(new Entry(sampleIndex, value));
+            dataSet.addEntry(new Entry(sampleIndex,value));
             sampleIndex++;
 
             lineData.notifyDataChanged();
@@ -128,23 +140,34 @@ public class MainActivity extends AppCompatActivity {
             ecgChart.setVisibleXRangeMaximum(300);
             ecgChart.moveViewToX(sampleIndex);
 
-            handler.postDelayed(this, 20);
+            handler.postDelayed(this,20);
         }
     };
 
-    private void detectRPeak(float value) {
-        if (value > threshold) {
-            if (rPeaks.isEmpty() || sampleIndex - rPeaks.get(rPeaks.size() - 1) > 20) {
+    // ================= R PEAK =================
+    private void detectRPeak(float value){
 
-                if (!rPeaks.isEmpty()) {
-                    double rrMs = (sampleIndex - rPeaks.get(rPeaks.size() - 1)) * (1000.0 / FS);
+        if(value > threshold){
+
+            if(rPeaks.isEmpty() ||
+                    sampleIndex -
+                            rPeaks.get(rPeaks.size()-1) > 20){
+
+                if(!rPeaks.isEmpty()){
+
+                    double rrMs =
+                            (sampleIndex -
+                                    rPeaks.get(rPeaks.size()-1))
+                                    *(1000.0/FS);
+
                     rrIntervals.add(rrMs);
 
-                    if (rrIntervals.size() > WINDOW_SIZE) {
+                    if(rrIntervals.size()>WINDOW_SIZE)
                         rrIntervals.remove(0);
-                    }
 
-                    double rmssd = calculateRMSSD(rrIntervals);
+                    double rmssd =
+                            calculateRMSSD(rrIntervals);
+
                     updateRMSSDUI(rmssd);
                     checkArrhythmia(rmssd);
                 }
@@ -154,111 +177,167 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void checkArrhythmia(double rmssd) {
-        if (rmssd > RMSSD_ARRHYTHMIA_THRESHOLD && !arrhythmiaDetected) {
+    // ================= RMSSD =================
+    private double calculateRMSSD(ArrayList<Double> rr){
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                if (ContextCompat.checkSelfPermission(this,
-                        Manifest.permission.POST_NOTIFICATIONS)
-                        != PackageManager.PERMISSION_GRANTED) {
+        if(rr.size()<3) return 0;
 
-                    ActivityCompat.requestPermissions(this,
-                            new String[]{Manifest.permission.POST_NOTIFICATIONS},
-                            NOTIFICATION_PERMISSION_CODE);
-                    return;
-                }
-            }
+        double sum=0;
 
-            arrhythmiaDetected = true;
-            sendArrhythmiaNotification();
+        for(int i=1;i<rr.size();i++){
+            double diff=rr.get(i)-rr.get(i-1);
+            sum+=diff*diff;
         }
+
+        return Math.sqrt(sum/(rr.size()-1));
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           String[] permissions,
-                                           int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-
-        if (requestCode == NOTIFICATION_PERMISSION_CODE) {
-            if (grantResults.length > 0 &&
-                    grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-
-                arrhythmiaDetected = true;
-                sendArrhythmiaNotification();
-            }
-        }
-    }
-
-    private double calculateRMSSD(ArrayList<Double> rr) {
-        if (rr.size() < 3) return 0.0;
-
-        double sum = 0.0;
-        for (int i = 1; i < rr.size(); i++) {
-            double diff = rr.get(i) - rr.get(i - 1);
-            sum += diff * diff;
-        }
-        return Math.sqrt(sum / (rr.size() - 1));
-    }
-
-    private void updateRMSSDUI(double rmssd) {
+    private void updateRMSSDUI(double rmssd){
         runOnUiThread(() ->
                 txtRMSSD.setText(
-                        String.format(Locale.getDefault(), "RMSSD: %.1f ms", rmssd)
-                ));
+                        String.format(
+                                Locale.getDefault(),
+                                "RMSSD: %.1f ms",
+                                rmssd)));
     }
 
-    private void startECG() {
-        if (isRunning) return;
+    // ================= ARRHYTHMIA =================
+    private void checkArrhythmia(double rmssd){
+
+        boolean arrhythmiaDetected =
+                rmssd > 120 || rmssd < 15;
+
+        long now = System.currentTimeMillis();
+
+        if(arrhythmiaDetected &&
+                now-lastNotificationTime >
+                        NOTIFICATION_COOLDOWN){
+
+            triggerNotification(now);
+        }
+    }
+
+    private void triggerNotification(long time){
+
+        if(Build.VERSION.SDK_INT>=33 &&
+                ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED){
+
+            pendingNotification=true;
+
+            ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{
+                            Manifest.permission.POST_NOTIFICATIONS},
+                    NOTIFICATION_PERMISSION_CODE);
+
+            return;
+        }
+
+        sendArrhythmiaNotification();
+        lastNotificationTime=time;
+    }
+
+    // ================= NOTIFICATION =================
+    private void sendArrhythmiaNotification(){
+
+        NotificationCompat.Builder builder =
+                new NotificationCompat.Builder(
+                        this,CHANNEL_ID)
+                        .setSmallIcon(
+                                android.R.drawable.ic_dialog_alert)
+                        .setContentTitle(
+                                "Arritmia detectada")
+                        .setContentText(
+                                "Possível arritmia cardíaca.")
+                        .setPriority(
+                                NotificationCompat.PRIORITY_HIGH);
+
+        NotificationManager manager =
+                (NotificationManager)
+                        getSystemService(
+                                NOTIFICATION_SERVICE);
+
+        manager.notify(1,builder.build());
+    }
+
+    private void createNotificationChannel(){
+
+        if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.O){
+
+            NotificationChannel channel=
+                    new NotificationChannel(
+                            CHANNEL_ID,
+                            "Arritmia",
+                            NotificationManager.IMPORTANCE_HIGH);
+
+            getSystemService(NotificationManager.class)
+                    .createNotificationChannel(channel);
+        }
+    }
+
+    // ================= CONTROLES =================
+    private void startECG(){
+
+        if(isRunning) return;
 
         dataSet.clear();
         ecgSignal.clear();
         rPeaks.clear();
         rrIntervals.clear();
 
-        sampleIndex = 0;
-        arrhythmiaDetected = false;
-
+        sampleIndex=0;
         txtRMSSD.setText("RMSSD: -- ms");
+
         ecgChart.invalidate();
 
-        isRunning = true;
+        isRunning=true;
         handler.post(ecgRunnable);
     }
 
-    private void stopECG() {
-        isRunning = false;
+    private void stopECG(){
+        isRunning=false;
     }
 
-    private void openResults() {
-        Intent intent = new Intent(this, ResultsActivity.class);
-        intent.putExtra("ecg", ecgSignal);
-        intent.putExtra("rr", rrIntervals);
+    private void openResults(){
+
+        Intent intent=
+                new Intent(this,
+                        ResultsActivity.class);
+
+        intent.putExtra("ecg",ecgSignal);
+        intent.putExtra("rr",rrIntervals);
+
         startActivity(intent);
     }
 
-    private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    "Arritmia",
-                    NotificationManager.IMPORTANCE_HIGH
-            );
-            NotificationManager manager = getSystemService(NotificationManager.class);
-            manager.createNotificationChannel(channel);
+    // ================= PERMISSION RESULT =================
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode,
+            String[] permissions,
+            int[] grantResults){
+
+        super.onRequestPermissionsResult(
+                requestCode,
+                permissions,
+                grantResults);
+
+        if(requestCode==
+                NOTIFICATION_PERMISSION_CODE){
+
+            if(grantResults.length>0 &&
+                    grantResults[0]==
+                            PackageManager.PERMISSION_GRANTED &&
+                    pendingNotification){
+
+                triggerNotification(
+                        System.currentTimeMillis());
+
+                pendingNotification=false;
+            }
         }
-    }
-
-    private void sendArrhythmiaNotification() {
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                .setContentTitle("Arritmia detectada")
-                .setContentText("Foi detectada uma possível arritmia.")
-                .setPriority(NotificationCompat.PRIORITY_HIGH);
-
-        NotificationManager manager =
-                (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-
-        manager.notify(1, builder.build());
     }
 }

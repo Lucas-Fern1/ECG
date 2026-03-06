@@ -2,56 +2,50 @@
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:padding="16dp">
 
-    <!-- TÍTULO -->
     <TextView
         android:id="@+id/txtTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Resultados do ECG"
+        android:text="Eventos de Arritmia Recentes"
         android:textSize="20sp"
         android:textStyle="bold"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
 
-    <!-- RMSSD -->
-    <TextView
-        android:id="@+id/txtRMSSDResults"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="RMSSD: -- ms"
-        android:textSize="18sp"
-        android:layout_marginTop="16dp"
-        app:layout_constraintTop_toBottomOf="@id/txtTitle"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
-
-    <!-- GRÁFICO ECG -->
-    <com.github.mikephil.charting.charts.LineChart
-        android:id="@+id/ecgChartResults"
+    <ScrollView
+        android:id="@+id/scrollEvents"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_marginTop="16dp"
-        app:layout_constraintTop_toBottomOf="@id/txtRMSSDResults"
+        app:layout_constraintTop_toBottomOf="@id/txtTitle"
         app:layout_constraintBottom_toTopOf="@id/btnSaveCSV"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        app:layout_constraintEnd_toEndOf="parent">
 
-    <!-- BOTÃO SALVAR CSV -->
+        <TextView
+            android:id="@+id/txtEvents"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:lineSpacingExtra="4dp"
+            android:padding="8dp"/>
+    </ScrollView>
+
     <Button
         android:id="@+id/btnSaveCSV"
-        android:layout_width="382dp"
-        android:layout_height="65dp"
-        android:layout_marginTop="16dp"
-        android:text="Salvar ECG em CSV"
+        android:layout_width="0dp"
+        android:layout_height="60dp"
+        android:text="Salvar Dados em CSV"
+        android:textAllCaps="false"
+        android:textSize="18sp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/ecgChartResults" />
-
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="8dp"/>
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,7 +1,6 @@
 package com.example.ecg;
 
 import android.Manifest;
-import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Environment;
@@ -15,11 +14,10 @@ import androidx.core.content.ContextCompat;
 
 import java.io.File;
 import java.io.FileWriter;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Locale;
-
-import com.example.ecg.ArrhythmiaEvent;
-import com.example.ecg.SerializationHelper;
 
 public class ResultsActivity extends AppCompatActivity {
 
@@ -29,16 +27,14 @@ public class ResultsActivity extends AppCompatActivity {
 
     private static final int STORAGE_PERMISSION = 200;
 
-    @SuppressLint("MissingInflatedId")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_arrhythmia_data); // novo layout
+        setContentView(R.layout.activity_arrhythmia_data);
 
         txtEvents = findViewById(R.id.txtEvents);
         btnSaveCSV = findViewById(R.id.btnSaveCSV);
 
-        // Carregar eventos do SharedPreferences
         events = loadEvents();
         displayEvents();
 
@@ -52,17 +48,20 @@ public class ResultsActivity extends AppCompatActivity {
         if (serialized != null) {
             try {
                 list = SerializationHelper.deserialize(serialized);
-            } catch (Exception e) { e.printStackTrace(); }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
         return list;
     }
 
     private void displayEvents() {
+        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
         StringBuilder sb = new StringBuilder();
         for (ArrhythmiaEvent e : events) {
+            String timeStr = sdf.format(new Date(e.getTimestamp()));
             sb.append(String.format(Locale.getDefault(),
-                    "Time: %tT, RMSSD: %.1f ms\n",
-                    e.getTimestamp(), e.getRmssd()));
+                    "Horário: %s, RMSSD: %.1f ms\n", timeStr, e.getRmssd()));
         }
         txtEvents.setText(sb.toString());
     }

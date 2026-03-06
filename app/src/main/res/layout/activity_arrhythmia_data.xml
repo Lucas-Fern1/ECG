@@ -6,19 +6,36 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- Título -->
     <TextView
-        android:id="@+id/txtEvents"
+        android:id="@+id/txtTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Eventos de Arritmia Detectados"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:paddingBottom="12dp"/>
+
+    <!-- Área rolável de eventos -->
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:textSize="16sp"
-        android:scrollbars="vertical"
-        android:padding="8dp" />
+        android:layout_weight="1">
 
+        <TextView
+            android:id="@+id/txtEvents"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:padding="8dp"/>
+    </ScrollView>
+
+    <!-- Botão salvar -->
     <Button
         android:id="@+id/btnSaveCSV"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Salvar Dados CSV" />
+        android:text="Salvar dados em CSV"
+        android:layout_marginTop="12dp"/>
 
 </LinearLayout>

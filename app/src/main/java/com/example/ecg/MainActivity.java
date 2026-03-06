@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
@@ -25,6 +26,9 @@ import com.github.mikephil.charting.data.LineDataSet;
 
 import java.util.ArrayList;
 import java.util.Locale;
+
+import com.example.ecg.ArrhythmiaEvent;
+import com.example.ecg.SerializationHelper;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -204,19 +208,48 @@ public class MainActivity extends AppCompatActivity {
     // ================= ARRHYTHMIA =================
     private void checkArrhythmia(double rmssd){
 
-        boolean arrhythmiaDetected =
-                rmssd > 120 || rmssd < 15;
+        boolean arrhythmiaDetected = rmssd > 120 || rmssd < 15;
+
+        if (arrhythmiaDetected) {
+            saveArrhythmiaEvent(rmssd);
+        }
 
         long now = System.currentTimeMillis();
 
         if(arrhythmiaDetected &&
-                now-lastNotificationTime >
-                        NOTIFICATION_COOLDOWN){
+                now-lastNotificationTime > NOTIFICATION_COOLDOWN){
 
             triggerNotification(now);
         }
     }
 
+    private void saveArrhythmiaEvent(double rmssd) {
+        long timestamp = System.currentTimeMillis();
+
+        SharedPreferences prefs = getSharedPreferences("arrhythmia_data", MODE_PRIVATE);
+        ArrayList<ArrhythmiaEvent> events = new ArrayList<>();
+
+        String serialized = prefs.getString("events", null);
+        if (serialized != null) {
+            try {
+                events = SerializationHelper.deserialize(serialized);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        events.add(new ArrhythmiaEvent(timestamp, rmssd));
+
+        // Mantém só os 10 eventos mais recentes
+        while (events.size() > 10) events.remove(0);
+
+        try {
+            String ser = SerializationHelper.serialize(events);
+            prefs.edit().putString("events", ser).apply();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
     private void triggerNotification(long time){
 
         if(Build.VERSION.SDK_INT>=33 &&

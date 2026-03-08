@@ -44,6 +44,8 @@ public class MainActivity extends AppCompatActivity {
     private ArrayList<Integer> rPeaks = new ArrayList<>();
     private ArrayList<Double> rrIntervals = new ArrayList<>();
 
+    private ArrayList<ArrhythmiaEvent> arrhythmiaEvents = new ArrayList<>();
+
     private static final float FS = 250f;
     private static final int WINDOW_SIZE = 30;
     private float threshold = 800f;
@@ -54,7 +56,7 @@ public class MainActivity extends AppCompatActivity {
     // ================= Notification =================
     private static final String CHANNEL_ID = "ARRHYTHMIA_CHANNEL";
     private static final int NOTIFICATION_PERMISSION_CODE = 1001;
-    private static final long NOTIFICATION_COOLDOWN = 60000;
+    private static final long NOTIFICATION_COOLDOWN = 5000;
 
     private long lastNotificationTime = 0;
     private boolean pendingNotification = false;
@@ -191,15 +193,30 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ================= ARRITMIA =================
-    private void checkArrhythmia(double rmssd){
+    private void checkArrhythmia(double rmssd) {
 
         boolean arrhythmiaDetected = rmssd > 120 || rmssd < 15;
 
-        if(arrhythmiaDetected){
+        if (arrhythmiaDetected) {
 
+            // cria evento e adiciona à lista
             long now = System.currentTimeMillis();
+            ArrhythmiaEvent event = new ArrhythmiaEvent(now, rmssd);
+            arrhythmiaEvents.add(event);
 
-            if(now-lastNotificationTime > NOTIFICATION_COOLDOWN){
+            // salva serializado nas SharedPreferences
+            try {
+                String serialized = SerializationHelper.serialize(arrhythmiaEvents);
+                getSharedPreferences("arrhythmia_data", MODE_PRIVATE)
+                        .edit()
+                        .putString("events", serialized)
+                        .apply();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            // notificação
+            if(now - lastNotificationTime > NOTIFICATION_COOLDOWN){
                 triggerNotification(now);
             }
         }

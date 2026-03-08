@@ -9,7 +9,6 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
 import android.widget.Button;
 import android.widget.TextView;
 
@@ -27,9 +26,6 @@ import com.github.mikephil.charting.data.LineDataSet;
 import java.util.ArrayList;
 import java.util.Locale;
 
-import com.example.ecg.ArrhythmiaEvent;
-import com.example.ecg.SerializationHelper;
-
 public class MainActivity extends AppCompatActivity {
 
     // ================= UI =================
@@ -42,7 +38,6 @@ public class MainActivity extends AppCompatActivity {
     private LineData lineData;
 
     // ================= ECG =================
-    private Handler handler = new Handler();
     private boolean isRunning = false;
     private int sampleIndex = 0;
 
@@ -53,6 +48,9 @@ public class MainActivity extends AppCompatActivity {
     private static final float FS = 50f;
     private static final int WINDOW_SIZE = 30;
     private float threshold = 0.8f;
+
+    // ================= BLE =================
+    private BLEManager bleManager;
 
     // ================= Notification =================
     private static final String CHANNEL_ID = "ARRHYTHMIA_CHANNEL";
@@ -78,6 +76,17 @@ public class MainActivity extends AppCompatActivity {
         setupChart();
         createNotificationChannel();
 
+        // Inicializa BLE
+        bleManager = new BLEManager(this, sample -> {
+
+            if(!isRunning) return;
+
+            float ecgValue = sample[0];
+
+            runOnUiThread(() -> processECGSample(ecgValue));
+
+        });
+
         btnStart.setOnClickListener(v -> startECG());
         btnStop.setOnClickListener(v -> stopECG());
         btnResults.setOnClickListener(v -> openResults());
@@ -100,55 +109,23 @@ public class MainActivity extends AppCompatActivity {
         ecgChart.getLegend().setEnabled(false);
     }
 
-    // ================= ECG GENERATOR =================
-    private float generateECGSample(int i) {
+    // ================= PROCESSA ECG =================
+    private void processECGSample(float value){
 
-        float hr = 75f + 5f *
-                (float) Math.sin(2 * Math.PI * i / 500f);
+        ecgSignal.add(value);
 
-        float rr = FS * 60f / hr;
-        float t = i % rr;
+        detectRPeak(value);
 
-        float p  = gaussian(t,0.20f*rr,0.025f*rr,0.10f);
-        float q  = gaussian(t,0.45f*rr,0.010f*rr,-0.15f);
-        float r  = gaussian(t,0.50f*rr,0.012f*rr,1.20f);
-        float s  = gaussian(t,0.55f*rr,0.010f*rr,-0.25f);
-        float tw = gaussian(t,0.75f*rr,0.050f*rr,0.30f);
+        dataSet.addEntry(new Entry(sampleIndex, value));
+        sampleIndex++;
 
-        return p+q+r+s+tw;
+        lineData.notifyDataChanged();
+        ecgChart.notifyDataSetChanged();
+        ecgChart.setVisibleXRangeMaximum(300);
+        ecgChart.moveViewToX(sampleIndex);
     }
 
-    private float gaussian(float x,float mu,float sigma,float amp){
-        return amp *
-                (float)Math.exp(-0.5*
-                        Math.pow((x-mu)/sigma,2));
-    }
-
-    // ================= LOOP ECG =================
-    private Runnable ecgRunnable = new Runnable() {
-        @Override
-        public void run() {
-
-            if(!isRunning) return;
-
-            float value = generateECGSample(sampleIndex);
-
-            ecgSignal.add(value);
-            detectRPeak(value);
-
-            dataSet.addEntry(new Entry(sampleIndex,value));
-            sampleIndex++;
-
-            lineData.notifyDataChanged();
-            ecgChart.notifyDataSetChanged();
-            ecgChart.setVisibleXRangeMaximum(300);
-            ecgChart.moveViewToX(sampleIndex);
-
-            handler.postDelayed(this,20);
-        }
-    };
-
-    // ================= R PEAK =================
+    // ================= DETECÇÃO R PEAK =================
     private void detectRPeak(float value){
 
         if(value > threshold){
@@ -205,51 +182,21 @@ public class MainActivity extends AppCompatActivity {
                                 rmssd)));
     }
 
-    // ================= ARRHYTHMIA =================
+    // ================= ARRITMIA =================
     private void checkArrhythmia(double rmssd){
 
         boolean arrhythmiaDetected = rmssd > 120 || rmssd < 15;
 
-        if (arrhythmiaDetected) {
-            saveArrhythmiaEvent(rmssd);
-        }
+        if(arrhythmiaDetected){
 
-        long now = System.currentTimeMillis();
+            long now = System.currentTimeMillis();
 
-        if(arrhythmiaDetected &&
-                now-lastNotificationTime > NOTIFICATION_COOLDOWN){
-
-            triggerNotification(now);
-        }
-    }
-
-    private void saveArrhythmiaEvent(double rmssd) {
-        long timestamp = System.currentTimeMillis();
-
-        SharedPreferences prefs = getSharedPreferences("arrhythmia_data", MODE_PRIVATE);
-        ArrayList<ArrhythmiaEvent> events = new ArrayList<>();
-
-        String serialized = prefs.getString("events", null);
-        if (serialized != null) {
-            try {
-                events = SerializationHelper.deserialize(serialized);
-            } catch (Exception e) {
-                e.printStackTrace();
+            if(now-lastNotificationTime > NOTIFICATION_COOLDOWN){
+                triggerNotification(now);
             }
         }
-
-        events.add(new ArrhythmiaEvent(timestamp, rmssd));
-
-        // Mantém só os 10 eventos mais recentes
-        while (events.size() > 10) events.remove(0);
-
-        try {
-            String ser = SerializationHelper.serialize(events);
-            prefs.edit().putString("events", ser).apply();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
+
     private void triggerNotification(long time){
 
         if(Build.VERSION.SDK_INT>=33 &&
@@ -273,7 +220,7 @@ public class MainActivity extends AppCompatActivity {
         lastNotificationTime=time;
     }
 
-    // ================= NOTIFICATION =================
+    // ================= NOTIFICAÇÃO =================
     private void sendArrhythmiaNotification(){
 
         NotificationCompat.Builder builder =
@@ -327,7 +274,6 @@ public class MainActivity extends AppCompatActivity {
         ecgChart.invalidate();
 
         isRunning=true;
-        handler.post(ecgRunnable);
     }
 
     private void stopECG(){
@@ -346,31 +292,12 @@ public class MainActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
-    // ================= PERMISSION RESULT =================
     @Override
-    public void onRequestPermissionsResult(
-            int requestCode,
-            String[] permissions,
-            int[] grantResults){
+    protected void onDestroy() {
+        super.onDestroy();
 
-        super.onRequestPermissionsResult(
-                requestCode,
-                permissions,
-                grantResults);
-
-        if(requestCode==
-                NOTIFICATION_PERMISSION_CODE){
-
-            if(grantResults.length>0 &&
-                    grantResults[0]==
-                            PackageManager.PERMISSION_GRANTED &&
-                    pendingNotification){
-
-                triggerNotification(
-                        System.currentTimeMillis());
-
-                pendingNotification=false;
-            }
+        if(bleManager != null){
+            bleManager.shutdown();
         }
     }
 }

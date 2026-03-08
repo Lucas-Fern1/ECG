@@ -44,9 +44,9 @@ public class MainActivity extends AppCompatActivity {
     private ArrayList<Integer> rPeaks = new ArrayList<>();
     private ArrayList<Double> rrIntervals = new ArrayList<>();
 
-    private static final float FS = 50f;
+    private static final float FS = 250f;
     private static final int WINDOW_SIZE = 30;
-    private float threshold = 0.8f;
+    private float threshold = 800f;
 
     // ================= BLE =================
     private BLEManager bleManager;

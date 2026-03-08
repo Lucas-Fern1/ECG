@@ -368,29 +368,26 @@ public class BLEManager {
 
     private void processData(byte[] data) {
 
-        if (data == null || data.length != 6)
-            return;
+        if (data == null || data.length < 8) return;
 
-        ByteBuffer buffer =
-                ByteBuffer.wrap(data)
-                        .order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
 
-        int[] sample = new int[3];
+        int header = buffer.getShort() & 0xFFFF;
+        int packetId = buffer.getShort() & 0xFFFF;
+        long timestamp = buffer.getInt() & 0xFFFFFFFFL;
 
-        for (int i = 0; i < 3; i++) {
+        int samplesCount = (data.length - 8) / 2; // cada amostra 2 bytes
+        int[] sample = new int[samplesCount];
 
-            sample[i] = buffer.getShort() & 0xFFFF;
+        for (int i = 0; i < samplesCount; i++) {
+            sample[i] = buffer.getShort();
         }
 
-        synchronized (bufferLock) {
-
-            if (bufferingEnabled)
-                dataQueue.offer(data);
-        }
-
+        // envia cada amostra individualmente para o listener
         if (listener != null) {
-
-            listener.onECGDataReceived(sample);
+            for (int s : sample) {
+                listener.onECGDataReceived(new int[]{s});
+            }
         }
     }
 

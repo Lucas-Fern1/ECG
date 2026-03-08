@@ -220,7 +220,7 @@ public class MainActivity extends AppCompatActivity {
         lastNotificationTime=time;
     }
 
-    // ================= NOTIFICAÇÃO =================
+    // ================= NOTIFICAÇÃO ================
     private void sendArrhythmiaNotification(){
 
         NotificationCompat.Builder builder =

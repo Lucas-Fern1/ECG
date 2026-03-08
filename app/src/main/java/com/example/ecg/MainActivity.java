@@ -4,7 +4,6 @@ import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
@@ -27,11 +26,11 @@ import java.util.ArrayList;
 import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
-
     // ================= UI =================
     private LineChart ecgChart;
     private Button btnStart, btnStop, btnResults;
     private TextView txtRMSSD;
+    private TextView txtStatus;
 
     // ================= Chart =================
     private LineDataSet dataSet;
@@ -63,6 +62,7 @@ public class MainActivity extends AppCompatActivity {
     // ====================================================
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
@@ -72,6 +72,9 @@ public class MainActivity extends AppCompatActivity {
         btnStop = findViewById(R.id.btnStop);
         btnResults = findViewById(R.id.btnResults);
         txtRMSSD = findViewById(R.id.txtRMSSD);
+        txtStatus = findViewById(R.id.txtStatus);
+
+        txtStatus.setText("BLE aguardando...");
 
         setupChart();
         createNotificationChannel();
@@ -83,7 +86,12 @@ public class MainActivity extends AppCompatActivity {
 
             float ecgValue = sample[0];
 
-            runOnUiThread(() -> processECGSample(ecgValue));
+            runOnUiThread(() -> {
+
+                txtStatus.setText("📈 Recebendo ECG...");
+                processECGSample(ecgValue);
+
+            });
 
         });
 
@@ -263,6 +271,8 @@ public class MainActivity extends AppCompatActivity {
 
         if(isRunning) return;
 
+        txtStatus.setText("🔍 Procurando ECG...");
+
         dataSet.clear();
         ecgSignal.clear();
         rPeaks.clear();
@@ -278,6 +288,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void stopECG(){
         isRunning=false;
+        txtStatus.setText("⏹ ECG parado");
     }
 
     private void openResults(){
@@ -300,4 +311,6 @@ public class MainActivity extends AppCompatActivity {
             bleManager.shutdown();
         }
     }
+
+
 }
